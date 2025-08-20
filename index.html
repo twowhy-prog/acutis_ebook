@@ -3,261 +3,348 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>E-BOOK Viewer (PDF.js + PageFlip)</title>
+  <title>성 카를로아쿠티스 — E-BOOK Viewer</title>
 
-  <!-- PageFlip CSS (MIT 라이브러리) -->
+  <!-- PageFlip CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/css/page-flip.css">
 
   <style>
-    :root {
-      --bg: #0b1020;
-      --panel: #12182c;
-      --txt: #e7ecff;
-      --muted: #9fb0ff;
+    :root{
+      --bg:#0a0e1a; --panel:#0f1426; --panel2:#131a33; --accent:#6ea8ff;
+      --txt:#e9edff; --muted:#a5b5ff; --border:#233064;
     }
-    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--txt); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
-    .wrap { display:flex; flex-direction:column; height:100%; }
-    header {
-      display:flex; align-items:center; gap:.75rem;
-      padding:.75rem 1rem; background:linear-gradient(180deg, #141b33, #0f1530);
-      position: sticky; top:0; z-index:10; box-shadow: 0 2px 18px rgba(0,0,0,.3);
-    }
-    header .brand { font-weight:700; letter-spacing:.3px; }
-    header .muted { color: var(--muted); font-size:.9rem; }
-    .controls { display:flex; align-items:center; gap:.5rem; margin-left:auto; }
-    .btn {
-      background:#1b2444; border:1px solid #2b3866; color:#fff;
-      padding:.45rem .7rem; border-radius:.6rem; cursor:pointer; font-weight:600;
-      transition:.15s ease; user-select:none;
-    }
-    .btn:hover { background:#223060; border-color:#3e5191; }
-    .btn:disabled { opacity:.5; cursor:not-allowed; }
-    .counter { min-width:90px; text-align:center; font-variant-numeric: tabular-nums; }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:radial-gradient(1200px 600px at 20% -10%,#0e1630 0%,#090e1a 60%),var(--bg);color:var(--txt);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+    .app{display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:auto 1fr;grid-template-areas:
+      "topbar topbar"
+      "sidebar stage"
+      "bottombar bottombar";height:100%;}
 
-    /* 뷰어 영역 */
-    .stage {
-      display:flex; justify-content:center; align-items:center;
-      flex:1 1 auto; min-height:0; padding:1rem; overflow:auto;
-    }
-    #flipbook {
-      width:min(92vw, 1200px);
-      height:clamp(360px, 75vh, 900px);
-      background:#0d1530; border:1px solid #2b3866; border-radius:16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,.45), inset 0 0 60px rgba(48,74,145,.15);
-    }
-    /* 페이지 내부 이미지 스타일 */
-    .page {
-      display:flex; width:100%; height:100%; background:#111935;
-      box-shadow: inset 0 0 40px rgba(0,0,0,.25);
-    }
-    .page img {
-      width:100%; height:100%; object-fit:contain; display:block; image-rendering:auto;
-      filter: drop-shadow(0 6px 24px rgba(0,0,0,.35));
-    }
+    /* 상단 바 */
+    .topbar{grid-area:topbar;display:flex;align-items:center;gap:.75rem;padding:.6rem .9rem;background:linear-gradient(180deg,#101836,#0d1530);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}
+    .brand{display:flex;align-items:center;gap:.6rem;font-weight:800;letter-spacing:.2px}
+    .brand .title{font-size:1.02rem}
+    .muted{color:var(--muted);font-size:.9rem}
+    .spacer{flex:1}
+    .btn{background:linear-gradient(180deg,#16224a,#121b3c);border:1px solid var(--border);color:#fff;padding:.45rem .65rem;border-radius:.6rem;cursor:pointer;font-weight:700;box-shadow:0 0 0 rgba(0,0,0,0);transition:.15s}
+    .btn:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(0,0,0,.25);border-color:#3952a3}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .sep{width:1px;height:28px;background:linear-gradient(180deg,#24326a,transparent,#24326a);opacity:.5;margin:0 .35rem}
+    .counter{min-width:100px;text-align:center;font-variant-numeric:tabular-nums}
 
-    footer {
-      padding:.8rem 1rem; text-align:center; color:#8ba1ff; font-size:.85rem; background:transparent;
-    }
+    /* 좌측 썸네일 사이드바 */
+    .sidebar{grid-area:sidebar;width:210px;max-width:48vw;transition:.2s;border-right:1px solid var(--border);background:linear-gradient(180deg,#0f1634 0%,#0c1230 100%);overflow:auto}
+    .sidebar.hidden{width:0;border-right:none}
+    .thumbs{display:grid;grid-template-columns:1fr;gap:.6rem;padding:.8rem}
+    .thumb{background:#0f1738;border:1px solid #223066;border-radius:12px;overflow:hidden;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+    .thumb img{display:block;width:100%;height:auto}
+    .thumb .label{padding:.35rem .5rem;color:#9fb2ff;font-size:.82rem;border-top:1px solid #223066}
+    .thumb.active{outline:2px solid var(--accent)}
+
+    /* 메인 스테이지 */
+    .stage{grid-area:stage;display:flex;align-items:center;justify-content:center;overflow:auto;padding:1rem}
+    #flipbook{width:min(92vw,1200px);height:clamp(380px,76vh,980px);background:conic-gradient(from 180deg at 50% 50%,#0b1330,#0a1230);border:1px solid var(--border);border-radius:16px;box-shadow:
+      0 20px 60px rgba(5,7,18,.55),
+      inset 0 0 80px rgba(80,110,200,.12);}
+    .page{display:flex;width:100%;height:100%;background:linear-gradient(180deg,#0f1738,#0c1230);box-shadow:inset 0 0 50px rgba(0,0,0,.28)}
+    .page img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 8px 26px rgba(0,0,0,.36))}
+    /* 책 그림자 더 깊게 */
+    .stf__item{filter:drop-shadow(0 40px 60px rgba(0,0,0,.55));}
+
+    /* 하단 컨트롤 바 */
+    .bottombar{grid-area:bottombar;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:.6rem;padding:.65rem .9rem;border-top:1px solid var(--border);background:linear-gradient(0deg,#0e1634,#0c1330)}
+    .range-wrap{display:flex;align-items:center;gap:.6rem}
+    input[type="range"]{width:42vw;min-width:180px}
+    .pager{display:flex;align-items:center;gap:.5rem;justify-content:center}
+    .pager input{width:70px;background:#0e1634;color:#fff;border:1px solid #2a3a78;border-radius:.5rem;padding:.38rem .5rem}
+    .zoomers{display:flex;justify-content:flex-end;gap:.4rem}
+
+    /* 빠른 선택 그리드(모달) */
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(5,8,18,.65);backdrop-filter:blur(6px);z-index:50}
+    .modal.open{display:flex}
+    .modal-panel{width:min(1000px,92vw);max-height:80vh;overflow:auto;background:linear-gradient(180deg,#0f1738,#0b1130);border:1px solid var(--border);border-radius:16px;box-shadow:0 30px 90px rgba(0,0,0,.55);padding:1rem}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.75rem}
+    .grid .cell{background:#0f1738;border:1px solid #223066;border-radius:12px;overflow:hidden;cursor:pointer}
+    .grid .cell img{display:block;width:100%;height:auto}
+    .grid .cap{padding:.35rem .5rem;color:#9fb2ff;font-size:.82rem;border-top:1px solid #223066}
+    .close-x{position:sticky;top:0;display:block;margin-left:auto;background:#1a2550;border:1px solid #2a3a78;border-radius:.6rem;padding:.35rem .6rem;cursor:pointer}
+
+    /* 툴팁 느낌 */
+    .hint{color:#8aa1ff;font-size:.85rem}
   </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="brand">📖 E-BOOK 뷰어</div>
-    <div class="muted">PDF.js + PageFlip</div>
-    <div class="controls">
-      <button id="btnPrev" class="btn" aria-label="이전 페이지">← Prev</button>
-      <div id="pageCounter" class="counter">0 / 0</div>
-      <button id="btnNext" class="btn" aria-label="다음 페이지">Next →</button>
+<div class="app">
+  <!-- 상단 바 -->
+  <div class="topbar">
+    <div class="brand">
+      <span>📖</span>
+      <span class="title">성 카를로아쿠티스</span>
+      <span class="muted">E-BOOK</span>
+    </div>
+    <div class="sep"></div>
+    <button id="btnToggleSidebar" class="btn" title="썸네일 사이드바 토글">썸네일</button>
+    <button id="btnQuickPick" class="btn" title="빠른 페이지 선택(그리드)">빠른선택</button>
+    <div class="spacer"></div>
+    <button id="btnPrev" class="btn" aria-label="이전 페이지">← Prev</button>
+    <div id="pageCounter" class="counter">0 / 0</div>
+    <button id="btnNext" class="btn" aria-label="다음 페이지">Next →</button>
+  </div>
+
+  <!-- 좌측 썸네일 -->
+  <aside id="sidebar" class="sidebar hidden">
+    <div id="thumbs" class="thumbs"></div>
+  </aside>
+
+  <!-- 메인 뷰어 -->
+  <main class="stage">
+    <div id="flipbook"></div>
+  </main>
+
+  <!-- 하단 바 -->
+  <div class="bottombar">
+    <div class="range-wrap">
+      <span class="hint">페이지</span>
+      <input id="pageRange" type="range" min="1" value="1" step="1">
+    </div>
+    <div class="pager">
+      <span class="hint">이동</span>
+      <input id="pageJump" type="number" min="1" value="1">
+      <button id="btnGo" class="btn">GO</button>
+    </div>
+    <div class="zoomers">
       <button id="btnZoomOut" class="btn" title="Zoom Out">–</button>
       <button id="btnZoomIn" class="btn" title="Zoom In">+</button>
       <button id="btnFullscreen" class="btn" title="전체화면">⤢</button>
     </div>
-  </header>
-
-  <main class="stage">
-    <!-- PageFlip 컨테이너 -->
-    <div id="flipbook"></div>
-  </main>
-
-  <footer>
-    성능 팁: 큰 PDF는 첫 6~8페이지만 선렌더링 후 스크롤/넘김 시 지연 렌더링을 권장합니다.
-  </footer>
+  </div>
 </div>
 
-<!-- PDF.js (Core/Worker) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script>
-  // PDF.js 워커 경로 지정(필수)
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-</script>
+<!-- 빠른 선택 모달 -->
+<div id="modal" class="modal" role="dialog" aria-modal="true" aria-label="빠른 페이지 선택">
+  <div class="modal-panel">
+    <button id="btnCloseModal" class="close-x">닫기 ✕</button>
+    <div id="grid" class="grid"></div>
+  </div>
+</div>
 
-<!-- PageFlip (바닐라 JS 버전) -->
+<!-- PDF.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";</script>
+
+<!-- PageFlip -->
 <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.min.js"></script>
 
 <script>
-(async function () {
-  // 1) 설정
-  const PDF_URL = "assets/book.pdf";     // ← 여기에 당신의 PDF 경로
-  const INITIAL_SCALE = 2.0;             // 렌더링 해상도 (2.0~2.5 권장)
-  const PREFETCH_PAGES = 8;              // 초기 선렌더링 페이지 수
-  const MAX_CANVAS_DIM = 2560;           // 고해상도 기기에서 캔버스 최대 한 변 제한 (성능/메모리 보호)
+(async function(){
+  // ===== 설정 =====
+  const PDF_URL = "assets/book.pdf";
+  const INITIAL_SCALE = 2.0;
+  const THUMB_SCALE = 0.35;       // 썸네일 해상도
+  const GRID_SCALE  = 0.28;       // 그리드 썸네일
+  const PREFETCH_PAGES = 8;
+  const MAX_CANVAS_DIM = 2560;
 
-  // 2) DOM 참조
+  // ===== 엘리먼트 =====
   const flipEl = document.getElementById("flipbook");
+  const pageCounter = document.getElementById("pageCounter");
   const btnPrev = document.getElementById("btnPrev");
   const btnNext = document.getElementById("btnNext");
   const btnZoomIn = document.getElementById("btnZoomIn");
   const btnZoomOut = document.getElementById("btnZoomOut");
   const btnFullscreen = document.getElementById("btnFullscreen");
-  const pageCounter = document.getElementById("pageCounter");
+  const btnToggleSidebar = document.getElementById("btnToggleSidebar");
+  const btnQuickPick = document.getElementById("btnQuickPick");
+  const sidebar = document.getElementById("sidebar");
+  const thumbsWrap = document.getElementById("thumbs");
+  const pageRange = document.getElementById("pageRange");
+  const pageJump = document.getElementById("pageJump");
+  const btnGo = document.getElementById("btnGo");
+  const modal = document.getElementById("modal");
+  const btnCloseModal = document.getElementById("btnCloseModal");
+  const grid = document.getElementById("grid");
 
-  // 3) PageFlip 초기화
+  // ===== PageFlip 초기화 =====
   const pageFlip = new St.PageFlip(flipEl, {
-    width: 700,            // 기준 폭
-    height: 900,           // 기준 높이 (종횡비만 대략 유지하면 OK)
-    size: "stretch",       // 컨테이너에 맞춰 반응형
-    minWidth: 315,
-    minHeight: 420,
-    maxShadowOpacity: 0.35,
-    showCover: false,      // true면 1페이지를 표지처럼 단면 처리
-    mobileScrollSupport: true,
-    usePortrait: true,     // 세로 단면 모드 자동 전환
-    disableFlipByClick: false,
-    swipeDistance: 30,
+    width:760, height:980, size:"stretch",
+    minWidth:340, minHeight:420, maxShadowOpacity:0.38,
+    showCover:false, mobileScrollSupport:true, usePortrait:true, swipeDistance:28
   });
 
-  // 4) PDF 로드
+  // ===== PDF 로드 =====
   const pdf = await pdfjsLib.getDocument(PDF_URL).promise;
   const total = pdf.numPages;
+  pageRange.max = total;
+  pageJump.max = total;
 
-  // 페이지 상태
   let currentScale = INITIAL_SCALE;
-  let rendered = new Array(total).fill(false);
-  let pageBitmaps = new Array(total).fill(null);
+  const rendered = new Array(total).fill(false);
+  const bitmaps = new Array(total).fill(null);
+  const thumbs  = new Array(total).fill(null);
+  const grids   = new Array(total).fill(null);
 
-  // 5) 유틸: 페이지 렌더링 → dataURL 반환
-  async function renderPageToDataURL(pageNumber, scale = currentScale) {
-    const page = await pdf.getPage(pageNumber);
-    const viewport0 = page.getViewport({ scale: 1.0 });
-
-    // 최대 해상도 제한 적용
-    const autoScale = Math.min(
-      scale,
-      MAX_CANVAS_DIM / Math.max(viewport0.width, viewport0.height)
-    );
-    const viewport = page.getViewport({ scale: autoScale });
-
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d", { willReadFrequently: false, alpha: false });
-    canvas.width = Math.floor(viewport.width);
-    canvas.height = Math.floor(viewport.height);
-
-    await page.render({ canvasContext: ctx, viewport }).promise;
-
-    const dataURL = canvas.toDataURL("image/jpeg", 0.9);
-    canvas.width = canvas.height = 0; // 메모리 해제 힌트
-    return dataURL;
+  function limitScale(scale){
+    return Math.min(scale, MAX_CANVAS_DIM / 1000); // 대략적 제한
   }
 
-  // 6) PageFlip에 페이지 추가(빈 껍데기 후 이미지 채우기)
-  function addEmptyPages(count) {
+  async function renderToDataURL(pageNum, scale){
+    const page = await pdf.getPage(pageNum);
+    const vp0 = page.getViewport({ scale:1.0 });
+    const auto = Math.min(scale, MAX_CANVAS_DIM / Math.max(vp0.width,vp0.height));
+    const vp = page.getViewport({ scale:auto });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.floor(vp.width); canvas.height = Math.floor(vp.height);
+    const ctx = canvas.getContext("2d", {alpha:false});
+    await page.render({ canvasContext:ctx, viewport:vp }).promise;
+    const url = canvas.toDataURL("image/jpeg", 0.9);
+    canvas.width = canvas.height = 0;
+    return url;
+  }
+
+  // 페이지 컨테이너 먼저 로드
+  (function addEmptyPages(){
     const pages = [];
-    for (let i = 0; i < count; i++) {
-      const page = document.createElement("div");
-      page.className = "page";
+    for(let i=0;i<total;i++){
+      const d = document.createElement("div");
+      d.className = "page";
       const img = document.createElement("img");
-      img.alt = `Page ${i + 1}`;
-      img.decoding = "async";
-      img.loading = "eager";
-      page.appendChild(img);
-      pages.push(page);
+      img.alt = `Page ${i+1}`;
+      d.appendChild(img);
+      pages.push(d);
     }
     pageFlip.loadFromHTML(pages);
-  }
+  })();
 
-  addEmptyPages(total);
+  // 초기 선렌더링
+  await (async function pre(){
+    for(let p=1;p<=Math.min(PREFETCH_PAGES,total);p++){
+      if(!rendered[p-1]){
+        const url = await renderToDataURL(p, currentScale);
+        pageFlip.getPage(p-1).element.querySelector("img").src = url;
+        bitmaps[p-1] = url; rendered[p-1] = true;
+      }
+    }
+    updateUI(1);
+  })();
 
-  // 7) 초기 선렌더링
-  async function preRender(start = 1, end = Math.min(PREFETCH_PAGES, total)) {
-    for (let p = start; p <= end; p++) {
-      if (!rendered[p - 1]) {
-        const url = await renderPageToDataURL(p);
-        const pageEl = pageFlip.getPage(p - 1).element;
-        pageEl.querySelector("img").src = url;
-        pageBitmaps[p - 1] = url;
-        rendered[p - 1] = true;
+  // 썸네일/그리드 생성
+  (async function buildThumbs(){
+    for(let p=1;p<=total;p++){
+      // sidebar 썸네일
+      const item = document.createElement("div");
+      item.className = "thumb";
+      const img = document.createElement("img");
+      img.alt = `Thumb ${p}`;
+      const cap = document.createElement("div"); cap.className="label"; cap.textContent = `p.${p}`;
+      item.appendChild(img); item.appendChild(cap);
+      item.addEventListener("click",()=>flipTo(p));
+      thumbsWrap.appendChild(item);
+
+      // 데이터 채우기(비동기)
+      (async ()=>{
+        const turl = await renderToDataURL(p, THUMB_SCALE);
+        img.src = turl;
+        thumbs[p-1] = turl;
+      })();
+
+      // grid 셀
+      const cell = document.createElement("div");
+      cell.className="cell";
+      const gimg = document.createElement("img"); gimg.alt=`Grid ${p}`;
+      const gcap = document.createElement("div"); gcap.className="cap"; gcap.textContent=`p.${p}`;
+      cell.appendChild(gimg); cell.appendChild(gcap);
+      cell.addEventListener("click",()=>{ modal.classList.remove("open"); flipTo(p); });
+      grid.appendChild(cell);
+      (async ()=>{
+        const gurl = await renderToDataURL(p, GRID_SCALE);
+        gimg.src = gurl;
+        grids[p-1] = gurl;
+      })();
+    }
+  })();
+
+  // 주변 지연 렌더링
+  async function lazyAround(idx){
+    const neighbors = [idx, idx+1, idx-1, idx+2, idx-2];
+    for(const i of neighbors){
+      if(i>=0 && i<total && !rendered[i]){
+        const url = await renderToDataURL(i+1, currentScale);
+        pageFlip.getPage(i).element.querySelector("img").src = url;
+        bitmaps[i] = url; rendered[i] = true;
       }
     }
   }
-  await preRender(1, Math.min(PREFETCH_PAGES, total));
-  updateCounter(1, total);
 
-  // 8) 페이지 이동 시 주변 지연 렌더링
-  async function lazyRenderAround(index) {
-    const neighbors = [index, index + 1, index - 1, index + 2, index - 2];
-    for (const i of neighbors) {
-      if (i >= 0 && i < total && !rendered[i]) {
-        const url = await renderPageToDataURL(i + 1);
-        const pageEl = pageFlip.getPage(i).element;
-        pageEl.querySelector("img").src = url;
-        pageBitmaps[i] = url;
-        rendered[i] = true;
-      }
-    }
-  }
-
-  // 9) 카운터 UI 업데이트
-  function updateCounter(page, total) {
+  function updateUI(page){
     pageCounter.textContent = `${page} / ${total}`;
-    btnPrev.disabled = (page <= 1);
-    btnNext.disabled = (page >= total);
+    pageRange.value = page;
+    pageJump.value = page;
+    btnPrev.disabled = (page<=1);
+    btnNext.disabled = (page>=total);
+    // 썸네일 선택 표시
+    const nodes = thumbsWrap.querySelectorAll(".thumb");
+    nodes.forEach((n,i)=> n.classList.toggle("active", i===page-1));
   }
 
-  // 10) 이벤트 바인딩
-  pageFlip.on("flip", async (e) => {
-    const current = e.data + 1; // 1-based
-    updateCounter(current, total);
-    lazyRenderAround(e.data);
+  function flipTo(p){
+    const targetIndex = Math.min(Math.max(1,p), total) - 1;
+    pageFlip.flip(targetIndex);
+  }
+
+  // 이벤트
+  pageFlip.on("flip", async (e)=>{
+    const page = e.data + 1;
+    updateUI(page);
+    lazyAround(e.data);
   });
 
-  // 초기 페이지 표시(필수)
+  // 초기 페이지
   pageFlip.flip(0);
 
-  // 버튼 컨트롤
-  btnPrev.addEventListener("click", () => pageFlip.flipPrev());
-  btnNext.addEventListener("click", () => pageFlip.flipNext());
+  // 버튼/컨트롤
+  btnPrev.addEventListener("click", ()=> pageFlip.flipPrev());
+  btnNext.addEventListener("click", ()=> pageFlip.flipNext());
+  btnToggleSidebar.addEventListener("click", ()=> sidebar.classList.toggle("hidden"));
+  btnQuickPick.addEventListener("click", ()=> modal.classList.add("open"));
+  btnCloseModal.addEventListener("click", ()=> modal.classList.remove("open"));
+  modal.addEventListener("click",(e)=>{ if(e.target===modal) modal.classList.remove("open"); });
 
-  // 줌 (재렌더링)
-  async function rerenderAll(newScale) {
+  pageRange.addEventListener("input", (e)=> flipTo(parseInt(e.target.value,10)));
+  btnGo.addEventListener("click", ()=> flipTo(parseInt(pageJump.value||"1",10)));
+  pageJump.addEventListener("keydown",(e)=>{ if(e.key==="Enter") btnGo.click(); });
+
+  // 줌(렌더 재생성: 이미 렌더된 페이지만)
+  async function rerenderAll(newScale){
     currentScale = Math.max(1.0, Math.min(newScale, 3.0));
-    // 이미 렌더된 페이지만 다시 그립니다(성능 최적화)
-    for (let i = 0; i < total; i++) {
-      if (rendered[i]) {
-        const url = await renderPageToDataURL(i + 1, currentScale);
-        const pageEl = pageFlip.getPage(i).element;
-        const img = pageEl.querySelector("img");
-        img.src = url;
-        pageBitmaps[i] = url;
+    for(let i=0;i<total;i++){
+      if(rendered[i]){
+        const url = await renderToDataURL(i+1, currentScale);
+        pageFlip.getPage(i).element.querySelector("img").src = url;
+        bitmaps[i] = url;
       }
     }
   }
-
-  btnZoomIn.addEventListener("click", () => rerenderAll(currentScale + 0.25));
-  btnZoomOut.addEventListener("click", () => rerenderAll(currentScale - 0.25));
+  btnZoomIn.addEventListener("click", ()=> rerenderAll(currentScale + 0.25));
+  btnZoomOut.addEventListener("click", ()=> rerenderAll(currentScale - 0.25));
 
   // 전체화면
-  btnFullscreen.addEventListener("click", () => {
+  btnFullscreen.addEventListener("click", ()=>{
     const el = document.documentElement;
-    if (!document.fullscreenElement) {
-      el.requestFullscreen?.();
-    } else {
-      document.exitFullscreen?.();
-    }
+    if(!document.fullscreenElement) el.requestFullscreen?.();
+    else document.exitFullscreen?.();
   });
 
-  // 반응형(창 크기 변할 때 레이아웃 재계산)
-  window.addEventListener("resize", () => pageFlip.update());
+  // 키보드 단축키
+  window.addEventListener("keydown",(e)=>{
+    if(e.key==="ArrowLeft") pageFlip.flipPrev();
+    if(e.key==="ArrowRight") pageFlip.flipNext();
+    if(e.key==="f") btnFullscreen.click();
+    if(e.key==="t") btnToggleSidebar.click();
+    if(e.key==="g") btnQuickPick.click();
+  });
+
+  // 반응형
+  window.addEventListener("resize", ()=> pageFlip.update());
 })();
 </script>
 </body>

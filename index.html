@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>E-BOOK Viewer (PDF.js + PageFlip)</title>
+
+  <!-- PageFlip CSS (MIT 라이브러리) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/css/page-flip.css">
+
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #12182c;
+      --txt: #e7ecff;
+      --muted: #9fb0ff;
+    }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--txt); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+    .wrap { display:flex; flex-direction:column; height:100%; }
+    header {
+      display:flex; align-items:center; gap:.75rem;
+      padding:.75rem 1rem; background:linear-gradient(180deg, #141b33, #0f1530);
+      position: sticky; top:0; z-index:10; box-shadow: 0 2px 18px rgba(0,0,0,.3);
+    }
+    header .brand { font-weight:700; letter-spacing:.3px; }
+    header .muted { color: var(--muted); font-size:.9rem; }
+    .controls { display:flex; align-items:center; gap:.5rem; margin-left:auto; }
+    .btn {
+      background:#1b2444; border:1px solid #2b3866; color:#fff;
+      padding:.45rem .7rem; border-radius:.6rem; cursor:pointer; font-weight:600;
+      transition:.15s ease; user-select:none;
+    }
+    .btn:hover { background:#223060; border-color:#3e5191; }
+    .btn:disabled { opacity:.5; cursor:not-allowed; }
+    .counter { min-width:90px; text-align:center; font-variant-numeric: tabular-nums; }
+
+    /* 뷰어 영역 */
+    .stage {
+      display:flex; justify-content:center; align-items:center;
+      flex:1 1 auto; min-height:0; padding:1rem; overflow:auto;
+    }
+    #flipbook {
+      width:min(92vw, 1200px);
+      height:clamp(360px, 75vh, 900px);
+      background:#0d1530; border:1px solid #2b3866; border-radius:16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45), inset 0 0 60px rgba(48,74,145,.15);
+    }
+    /* 페이지 내부 이미지 스타일 */
+    .page {
+      display:flex; width:100%; height:100%; background:#111935;
+      box-shadow: inset 0 0 40px rgba(0,0,0,.25);
+    }
+    .page img {
+      width:100%; height:100%; object-fit:contain; display:block; image-rendering:auto;
+      filter: drop-shadow(0 6px 24px rgba(0,0,0,.35));
+    }
+
+    footer {
+      padding:.8rem 1rem; text-align:center; color:#8ba1ff; font-size:.85rem; background:transparent;
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">📖 E-BOOK 뷰어</div>
+    <div class="muted">PDF.js + PageFlip</div>
+    <div class="controls">
+      <button id="btnPrev" class="btn" aria-label="이전 페이지">← Prev</button>
+      <div id="pageCounter" class="counter">0 / 0</div>
+      <button id="btnNext" class="btn" aria-label="다음 페이지">Next →</button>
+      <button id="btnZoomOut" class="btn" title="Zoom Out">–</button>
+      <button id="btnZoomIn" class="btn" title="Zoom In">+</button>
+      <button id="btnFullscreen" class="btn" title="전체화면">⤢</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <!-- PageFlip 컨테이너 -->
+    <div id="flipbook"></div>
+  </main>
+
+  <footer>
+    성능 팁: 큰 PDF는 첫 6~8페이지만 선렌더링 후 스크롤/넘김 시 지연 렌더링을 권장합니다.
+  </footer>
+</div>
+
+<!-- PDF.js (Core/Worker) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  // PDF.js 워커 경로 지정(필수)
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+</script>
+
+<!-- PageFlip (바닐라 JS 버전) -->
+<script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.min.js"></script>
+
+<script>
+(async function () {
+  // 1) 설정
+  const PDF_URL = "assets/book.pdf";     // ← 여기에 당신의 PDF 경로
+  const INITIAL_SCALE = 2.0;             // 렌더링 해상도 (2.0~2.5 권장)
+  const PREFETCH_PAGES = 8;              // 초기 선렌더링 페이지 수
+  const MAX_CANVAS_DIM = 2560;           // 고해상도 기기에서 캔버스 최대 한 변 제한 (성능/메모리 보호)
+
+  // 2) DOM 참조
+  const flipEl = document.getElementById("flipbook");
+  const btnPrev = document.getElementById("btnPrev");
+  const btnNext = document.getElementById("btnNext");
+  const btnZoomIn = document.getElementById("btnZoomIn");
+  const btnZoomOut = document.getElementById("btnZoomOut");
+  const btnFullscreen = document.getElementById("btnFullscreen");
+  const pageCounter = document.getElementById("pageCounter");
+
+  // 3) PageFlip 초기화
+  const pageFlip = new St.PageFlip(flipEl, {
+    width: 700,            // 기준 폭
+    height: 900,           // 기준 높이 (종횡비만 대략 유지하면 OK)
+    size: "stretch",       // 컨테이너에 맞춰 반응형
+    minWidth: 315,
+    minHeight: 420,
+    maxShadowOpacity: 0.35,
+    showCover: false,      // true면 1페이지를 표지처럼 단면 처리
+    mobileScrollSupport: true,
+    usePortrait: true,     // 세로 단면 모드 자동 전환
+    disableFlipByClick: false,
+    swipeDistance: 30,
+  });
+
+  // 4) PDF 로드
+  const pdf = await pdfjsLib.getDocument(PDF_URL).promise;
+  const total = pdf.numPages;
+
+  // 페이지 상태
+  let currentScale = INITIAL_SCALE;
+  let rendered = new Array(total).fill(false);
+  let pageBitmaps = new Array(total).fill(null);
+
+  // 5) 유틸: 페이지 렌더링 → dataURL 반환
+  async function renderPageToDataURL(pageNumber, scale = currentScale) {
+    const page = await pdf.getPage(pageNumber);
+    const viewport0 = page.getViewport({ scale: 1.0 });
+
+    // 최대 해상도 제한 적용
+    const autoScale = Math.min(
+      scale,
+      MAX_CANVAS_DIM / Math.max(viewport0.width, viewport0.height)
+    );
+    const viewport = page.getViewport({ scale: autoScale });
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d", { willReadFrequently: false, alpha: false });
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    const dataURL = canvas.toDataURL("image/jpeg", 0.9);
+    canvas.width = canvas.height = 0; // 메모리 해제 힌트
+    return dataURL;
+  }
+
+  // 6) PageFlip에 페이지 추가(빈 껍데기 후 이미지 채우기)
+  function addEmptyPages(count) {
+    const pages = [];
+    for (let i = 0; i < count; i++) {
+      const page = document.createElement("div");
+      page.className = "page";
+      const img = document.createElement("img");
+      img.alt = `Page ${i + 1}`;
+      img.decoding = "async";
+      img.loading = "eager";
+      page.appendChild(img);
+      pages.push(page);
+    }
+    pageFlip.loadFromHTML(pages);
+  }
+
+  addEmptyPages(total);
+
+  // 7) 초기 선렌더링
+  async function preRender(start = 1, end = Math.min(PREFETCH_PAGES, total)) {
+    for (let p = start; p <= end; p++) {
+      if (!rendered[p - 1]) {
+        const url = await renderPageToDataURL(p);
+        const pageEl = pageFlip.getPage(p - 1).element;
+        pageEl.querySelector("img").src = url;
+        pageBitmaps[p - 1] = url;
+        rendered[p - 1] = true;
+      }
+    }
+  }
+  await preRender(1, Math.min(PREFETCH_PAGES, total));
+  updateCounter(1, total);
+
+  // 8) 페이지 이동 시 주변 지연 렌더링
+  async function lazyRenderAround(index) {
+    const neighbors = [index, index + 1, index - 1, index + 2, index - 2];
+    for (const i of neighbors) {
+      if (i >= 0 && i < total && !rendered[i]) {
+        const url = await renderPageToDataURL(i + 1);
+        const pageEl = pageFlip.getPage(i).element;
+        pageEl.querySelector("img").src = url;
+        pageBitmaps[i] = url;
+        rendered[i] = true;
+      }
+    }
+  }
+
+  // 9) 카운터 UI 업데이트
+  function updateCounter(page, total) {
+    pageCounter.textContent = `${page} / ${total}`;
+    btnPrev.disabled = (page <= 1);
+    btnNext.disabled = (page >= total);
+  }
+
+  // 10) 이벤트 바인딩
+  pageFlip.on("flip", async (e) => {
+    const current = e.data + 1; // 1-based
+    updateCounter(current, total);
+    lazyRenderAround(e.data);
+  });
+
+  // 초기 페이지 표시(필수)
+  pageFlip.flip(0);
+
+  // 버튼 컨트롤
+  btnPrev.addEventListener("click", () => pageFlip.flipPrev());
+  btnNext.addEventListener("click", () => pageFlip.flipNext());
+
+  // 줌 (재렌더링)
+  async function rerenderAll(newScale) {
+    currentScale = Math.max(1.0, Math.min(newScale, 3.0));
+    // 이미 렌더된 페이지만 다시 그립니다(성능 최적화)
+    for (let i = 0; i < total; i++) {
+      if (rendered[i]) {
+        const url = await renderPageToDataURL(i + 1, currentScale);
+        const pageEl = pageFlip.getPage(i).element;
+        const img = pageEl.querySelector("img");
+        img.src = url;
+        pageBitmaps[i] = url;
+      }
+    }
+  }
+
+  btnZoomIn.addEventListener("click", () => rerenderAll(currentScale + 0.25));
+  btnZoomOut.addEventListener("click", () => rerenderAll(currentScale - 0.25));
+
+  // 전체화면
+  btnFullscreen.addEventListener("click", () => {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  });
+
+  // 반응형(창 크기 변할 때 레이아웃 재계산)
+  window.addEventListener("resize", () => pageFlip.update());
+})();
+</script>
+</body>
+</html>
